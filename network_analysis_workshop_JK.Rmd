@@ -1,0 +1,225 @@
+---
+title: "Investigating the Enron Scandal"
+output: html_notebook
+---
+# 1. First, we need to install and call necessary libraries
+```{r}
+#install.packages(c('igraph','threejs'))
+
+# For creating network graphs
+library(igraph)  
+library(visNetwork)
+# For creating interactive, 3D visualisations of a network
+```
+
+
+# 2. Read in the email dataset from the data folder
+```{r}
+# Read the data
+data <- read.csv('enron_emails.csv')
+
+# First 5 rows
+head(data)
+
+# Notice that it's quite simply two columns: From, and  To
+```
+
+
+# 3. Create a graph from the data
+```{r}
+# Create a directed graph from the data
+g <- graph_from_edgelist(as.matrix(data), directed = T)
+```
+
+
+# 4. Investigate our Enron email network
+
+```{r}
+# See the vertices/nodes
+V(g)
+
+# Number of nodes/vertices/Enron employees in the network
+gorder(g)
+
+# See the edges
+E(g)
+
+# Number of edges/emails
+gsize(g)
+
+# Check if our graph is directed
+is.directed(g)
+
+# Check if our network graph is weighted
+is.weighted(g)
+```
+
+
+## Explore adjacent nodes/neighbours
+
+```{r}
+# We can see adjacent nodes using the 'neighbors' function
+
+# Let's explore Gregg  Whalley's neighbours - first, all emails that were sent to him, i.e. mode = 'in'
+neighbors(g, 'greg.whalley', mode = c('in'))
+
+# How about emails he sent?
+neighbors(g, 'greg.whalley', mode = c('out'))
+
+# How about all emails?
+neighbors(g, 'greg.whalley', mode = c('all'))
+
+```
+
+
+## Explore degrees of the nodes in the network
+
+```{r}
+# Find the degrees of each node --  in other words, number  of people each employee has sent emails to or received emails from
+degree(g)
+
+# Sort this  list in decreasing  order
+sort(degree(g), decreasing = T)
+```
+
+
+
+## Explore cliques and communities in the network -- i.e. completed networks
+
+```{r}
+# Let's now find all cliques in the network
+
+# If the 'min' argument isn't specified, it will include individuals as cliques of their own
+cliques(g, min = 6)
+
+# Find the largest  present clique in the Enron email network
+largest_cliques(g)
+
+```
+
+
+## Plot the largest clique present in the network as an arcplot
+
+```{r}
+# Assign a variable to larget cliques
+lclique <- largest_cliques(g)
+
+# Create a new subgraph only containing the vertices of the largest clique we found above
+subg <- induced_subgraph(g, lclique[[1]])
+
+# Plot an 'arcplot' of this subgraph
+plot(subg,
+     vertex.label.color = "black",
+     vertex.label.cex = 0.9,
+     vertex.size = 0,
+     edge.color = 'gray28',
+     main = "Network of Largest Clique at Enron",
+     layout = layout.circle(subg)
+)
+```
+
+
+# 5. Find and visualise important nodes.
+
+## Using 3 measures of centrality:
+    1) Betweenness centrality
+    2) Eigenvector centrality
+    3) Pagerank
+
+
+## Betweenness centrality
+The more shortest paths that go through the node, the more important it is
+
+```{r}
+library(visNetwork)
+```
+
+
+```{r}
+visIgraph(g)
+```
+
+
+```{r}
+data <- toVisNetworkData(g)
+
+# Create numerical vector of various centrality measures --  betweenness, eignecentrality, and pagerank.
+
+data$nodes$value <- as.numeric(betweenness(g))
+data$nodes$title <- data$nodes$label
+data$nodes$label <- NULL
+
+visNetwork(nodes = data$nodes, edges = data$edges) %>% 
+  visIgraphLayout(randomSeed = 123) %>%
+  visNodes(scaling = list(min = 30, max = 100), color = list(background = "lightblue", highlight = "yellow")) %>%
+  visEdges(color = list(color = "cornflowerblue", highlight = "red"))
+```
+
+
+
+
+## Eigenvector centrality
+The more well-connected the node is to other well-connected nodes, the more important it is.
+
+```{r}
+data <- toVisNetworkData(g)
+
+# Create numerical vector of various centrality measures --  betweenness, eignecentrality, and pagerank.
+
+data$nodes$value <- as.numeric(eigen_centrality(g)$vector)
+data$nodes$title <- data$nodes$label
+data$nodes$label <- NULL
+
+visNetwork(nodes = data$nodes, edges = data$edges) %>% 
+  visIgraphLayout(randomSeed = 123) %>%
+  visNodes(scaling = list(min = 30, max = 100), color = list(background = "lightblue", highlight = "yellow")) %>%
+  visEdges(color = list(color = "cornflowerblue", highlight = "red"))
+```
+
+
+## Centrality according to the PageRank algorithm
+Node importance is dictated by:
+  - Number of nodes it's connected to
+  - More importantly, the 'quality' of those nodes.
+
+```{r}
+data <- toVisNetworkData(g)
+
+data$nodes$value <- as.numeric(page_rank(g)$vector)
+data$nodes$title <- data$nodes$label
+data$nodes$label <- NULL
+
+visNetwork(nodes = data$nodes, edges = data$edges) %>% 
+  visIgraphLayout(randomSeed = 123) %>%
+  visNodes(scaling = list(min = 30, max = 100), color = list(background = "lightblue", highlight = "yellow")) %>%
+  visEdges(color = list(color = "cornflowerblue", highlight = "red"))
+```
+
+
+
+
+## Some useful insights:
+
+1) Tracy Geaccone and Rod Hayslett are both the largest nodes in the network, according to Eigenvector centrality. They are also part of the largest clique, as we discovered above.  
+
+According to the 'Report of Investigation of Enron Corporation and Related Entities Regarding Federal Tax and Compensation Issues, and Policy Recommendations, Volume III: Appendices C & D' (https://books.google.co.uk/books?id=UggNpmlzYFYC&pg=PA150&lpg=PA150&dq=tracy+geaccone+enron&source=bl&ots=X0HQc5OZci&sig=ACfU3U0Fwm1j8cHe_v8Hh9btALrsN7xGyQ&hl=en&sa=X&ved=2ahUKEwjFjJPutujgAhWpQhUIHSOYBUoQ6AEwA3oECAcQAQ#v=onepage&q=tracy%20geaccone&f=false)
+
+ -  Tracy Geaccone: Director of Consolidations in the ETS department
+ -  Rod (Roderick) Hayslett: Managing Director, ETS Finance and Accounting
+
+ Both in the department where the fraud took place!
+
+
+ 2) Also on the Eigenvector centrality visualisation, can you find:
+    - Kenneth Lay, Founder, Chairman, Ex-CEO of Enron
+    - Jeff  (Jeffrey) Skilling, CEO of Enron at the  time
+
+ 3) The PageRank visualisation doesn't seem to show massive differences in node importance - why is that?
+
+
+Did you notice anything else in your investigation?
+
+
+
+
+Interesting notebook on RPubs on Enron dataset: https://rpubs.com/Koba/enron-network-code. One of the plots at the bottom shows how cliques started forming as time went by, and we got closer to the time of the scandal.
